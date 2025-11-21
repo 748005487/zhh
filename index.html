@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>MP4 → MP3 转换器 (纯本地)</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      
+      .container {
+        background: white;
+        border-radius: 20px;
+        padding: 40px;
+        max-width: 500px;
+        width: 100%;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      }
+      
+      h1 {
+        color: #333;
+        font-size: 28px;
+        margin-bottom: 10px;
+        text-align: center;
+      }
+      
+      .subtitle {
+        color: #666;
+        font-size: 14px;
+        text-align: center;
+        margin-bottom: 30px;
+      }
+      
+      .upload-area {
+        border: 2px dashed #667eea;
+        border-radius: 10px;
+        padding: 40px 20px;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-bottom: 20px;
+      }
+      
+      .upload-area:hover {
+        background: #f8f9ff;
+        border-color: #764ba2;
+      }
+      
+      .upload-area.dragover {
+        background: #f0f0ff;
+        border-color: #764ba2;
+      }
+      
+      .upload-icon {
+        font-size: 48px;
+        margin-bottom: 10px;
+      }
+      
+      .upload-text {
+        color: #667eea;
+        font-size: 16px;
+        font-weight: 500;
+      }
+      
+      .file-info {
+        background: #f8f9ff;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        display: none;
+      }
+      
+      .file-info.show {
+        display: block;
+      }
+      
+      .file-name {
+        color: #333;
+        font-weight: 500;
+        margin-bottom: 5px;
+        word-break: break-all;
+      }
+      
+      .file-size {
+        color: #666;
+        font-size: 14px;
+      }
+      
+      input[type="file"] {
+        display: none;
+      }
+      
+      button {
+        width: 100%;
+        padding: 15px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s;
+        margin-bottom: 15px;
+      }
+      
+      button:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+      }
+      
+      button:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+      }
+      
+      .progress {
+        display: none;
+        margin-bottom: 15px;
+      }
+      
+      .progress.show {
+        display: block;
+      }
+      
+      .progress-bar {
+        height: 8px;
+        background: #e0e0e0;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-bottom: 10px;
+      }
+      
+      .progress-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        width: 0%;
+        transition: width 0.3s;
+      }
+      
+      .progress-text {
+        color: #666;
+        font-size: 14px;
+        text-align: center;
+      }
+      
+      .success {
+        background: #4caf50;
+        color: white;
+        padding: 15px;
+        border-radius: 8px;
+        text-align: center;
+        display: none;
+        margin-bottom: 15px;
+      }
+      
+      .success.show {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🎵 MP4 → MP3</h1>
+      <p class="subtitle">纯本地转换，文件不上传到服务器</p>
+      
+      <div class="upload-area" id="uploadArea">
+        <div class="upload-icon">📁</div>
+        <div class="upload-text">点击或拖拽 MP4 文件到这里</div>
+      </div>
+      
+      <input type="file" id="fileInput" accept="video/mp4,video/*" />
+      
+      <div class="file-info" id="fileInfo">
+        <div class="file-name" id="fileName"></div>
+        <div class="file-size" id="fileSize"></div>
+      </div>
+      
+      <button id="convertBtn" disabled>选择文件开始转换</button>
+      
+      <div class="progress" id="progress">
+        <div class="progress-bar">
+          <div class="progress-fill" id="progressFill"></div>
+        </div>
+        <div class="progress-text" id="progressText"></div>
+      </div>
+      
+      <div class="success" id="success">
+        ✓ 转换成功！文件已下载
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+    <script>
+      const uploadArea = document.getElementById('uploadArea');
+      const fileInput = document.getElementById('fileInput');
+      const convertBtn = document.getElementById('convertBtn');
+      const fileInfo = document.getElementById('fileInfo');
+      const fileName = document.getElementById('fileName');
+      const fileSize = document.getElementById('fileSize');
+      const progress = document.getElementById('progress');
+      const progressFill = document.getElementById('progressFill');
+      const progressText = document.getElementById('progressText');
+      const success = document.getElementById('success');
+      
+      let selectedFile = null;
+
+      // 点击上传区域
+      uploadArea.addEventListener('click', () => {
+        fileInput.click();
+      });
+
+      // 拖拽相关事件
+      uploadArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadArea.classList.add('dragover');
+      });
+
+      uploadArea.addEventListener('dragleave', () => {
+        uploadArea.classList.remove('dragover');
+      });
+
+      uploadArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadArea.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          handleFileSelect(files[0]);
+        }
+      });
+
+      // 文件选择
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+          handleFileSelect(e.target.files[0]);
+        }
+      });
+
+      function handleFileSelect(file) {
+        selectedFile = file;
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        fileInfo.classList.add('show');
+        convertBtn.disabled = false;
+        convertBtn.textContent = '开始转换';
+        success.classList.remove('show');
+      }
+
+      function formatFileSize(bytes) {
+        if (bytes < 1024) return bytes + ' B';
+        if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(2) + ' KB';
+        return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+      }
+
+      function updateProgress(percent, text) {
+        progress.classList.add('show');
+        progressFill.style.width = percent + '%';
+        progressText.textContent = text;
+      }
+
+      // 转换功能
+      convertBtn.addEventListener('click', async () => {
+        if (!selectedFile) {
+          alert('请先选择一个 MP4 文件');
+          return;
+        }
+
+        convertBtn.disabled = true;
+        success.classList.remove('show');
+        updateProgress(0, '准备中...');
+
+        try {
+          // 1. 直接读取文件
+          updateProgress(10, '读取文件...');
+          const arrayBuffer = await selectedFile.arrayBuffer();
+          
+          updateProgress(30, '解码音频数据...');
+          
+          // 2. 使用 Web Audio API 解码（浏览器会自动处理 MP4 容器和 AAC 解码）
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          
+          updateProgress(60, '编码为 MP3...');
+          
+          // 3. 获取音频通道数据
+          const leftChannel = audioBuffer.getChannelData(0);
+          const rightChannel = audioBuffer.numberOfChannels > 1 
+            ? audioBuffer.getChannelData(1) 
+            : leftChannel;
+          
+          // 4. 转换为 MP3
+          const mp3Data = encodeToMp3Simple(leftChannel, rightChannel, audioBuffer.sampleRate);
+
+          updateProgress(90, '准备下载...');
+
+          // 5. 下载文件
+          const mp3Blob = new Blob(mp3Data, { type: 'audio/mpeg' });
+          const downloadUrl = URL.createObjectURL(mp3Blob);
+          const a = document.createElement('a');
+          a.href = downloadUrl;
+          a.download = selectedFile.name.replace(/\.[^.]+$/, '') + '.mp3';
+          a.click();
+
+          // 清理
+          URL.revokeObjectURL(downloadUrl);
+          await audioContext.close();
+
+          updateProgress(100, '完成！');
+          success.classList.add('show');
+          convertBtn.disabled = false;
+          convertBtn.textContent = '继续转换';
+
+        } catch (error) {
+          console.error('转换失败：', error);
+          alert('转换失败：' + error.message + '\n\n建议：\n1. 确保文件是有效的 MP4 视频\n2. 检查文件是否包含音频轨道\n3. 尝试使用较小的文件测试');
+          convertBtn.disabled = false;
+          progress.classList.remove('show');
+        }
+      });
+
+      function encodeToMp3Simple(leftChannel, rightChannel, sampleRate) {
+        const samples = leftChannel.length;
+        const channels = 2;
+
+        // 转换为 16 位 PCM
+        const leftPcm = new Int16Array(samples);
+        const rightPcm = new Int16Array(samples);
+
+        for (let i = 0; i < samples; i++) {
+          leftPcm[i] = Math.max(-32768, Math.min(32767, leftChannel[i] * 32768));
+          rightPcm[i] = Math.max(-32768, Math.min(32767, rightChannel[i] * 32768));
+        }
+
+        // 使用 lamejs 编码
+        const mp3encoder = new lamejs.Mp3Encoder(channels, sampleRate, 128);
+        const mp3Data = [];
+        const sampleBlockSize = 1152;
+
+        for (let i = 0; i < samples; i += sampleBlockSize) {
+          const leftChunk = leftPcm.subarray(i, i + sampleBlockSize);
+          const rightChunk = rightPcm.subarray(i, i + sampleBlockSize);
+          const mp3buf = mp3encoder.encodeBuffer(leftChunk, rightChunk);
+          if (mp3buf.length > 0) {
+            mp3Data.push(mp3buf);
+          }
+        }
+
+        const finalMp3buf = mp3encoder.flush();
+        if (finalMp3buf.length > 0) {
+          mp3Data.push(finalMp3buf);
+        }
+
+        return mp3Data;
+      }
+    </script>
+  </body>
+</html>
